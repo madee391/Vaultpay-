@@ -1,0 +1,253 @@
+:root {
+  --bg: #f9fafc;
+  --card-bg: #ffffff;
+  --primary: #0078d4; /* Dcash blue */
+  --primary-dark: #005a9e;
+  --text-primary: #212121;
+  --text-muted: #757575;
+  --border: #e0e0e0;
+  --shadow: rgba(0, 0, 0, 0.1);
+  --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px 10px;
+}
+
+.app {
+  max-width: 480px;
+  width: 100%;
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+h1 {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.tag {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.header-actions button {
+  background: var(--primary);
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  color: white;
+  transition: background-color 0.3s ease;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+.header-actions button:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+button:disabled {
+  background: #cfd8dc;
+  cursor: not-allowed;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+.card h2 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-weight: 600;
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.balance-amount {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--primary);
+}
+
+#transaction-history {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+#transaction-history table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#transaction-history th,
+#transaction-history td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+#transaction-history th {
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+}
+
+.info-link {
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
+
+.floating-whatsapp {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  background: #25d366;
+  border-radius: 50%;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  transition: box-shadow 0.2s ease;
+}
+
+.floating-whatsapp:hover {
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.3);
+}
+
+.floating-whatsapp svg {
+  width: 30px;
+  height: 30px;
+  fill: white;
+}
+
+/* Modal styles */
+#info-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 9998;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+#info-modal.active {
+  display: flex;
+}
+
+#info-modal .modal-content {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+#info-modal h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+#info-modal button.close-btn {
+  background: var(--primary);
+  color: white;
+  font-weight: 700;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 20px;
+  width: 100%;
+  transition: background-color 0.3s ease;
+}
+
+#info-modal button.close-btn:hover {
+  background: var(--primary-dark);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .app {
+    padding: 16px;
+  }
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .header-actions {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+  }
+}
