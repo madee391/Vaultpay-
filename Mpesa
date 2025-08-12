@@ -1,0 +1,90 @@
+import { createClient } from 'npm:@supabase/supabase-js';
+import { Buffer } from 'node:buffer';
+import { verifyAuth } from './lib/auth.ts';
+
+Deno.serve(async (req: Request) => {
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const auth = await verifyAuth(req, supabase);
+
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.error || 'Unauthorized' }), { status: 401 });
+  }
+
+  // Allowed roles to initiate mpesa
+  const allowed = ['user', 'trader', 'admin'];
+  if (!allowed.includes(auth.role || 'anonymous')) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+  }
+
+  let userId = auth.user?.id ?? null;
+
+  // parse payload
+  let payload;
+  try { payload = await req.json(); } catch { return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 }); }
+  const { phone, amount } = payload;
+  if (!phone || !amount) return new Response(JSON.stringify({ error: 'Missing phone or amount' }), { status: 400 });
+
+  // Get MPESA token
+  const consumerKey = Deno.env.get('MPESA_CONSUMER_KEY')!;
+  const consumerSecret = Deno.env.get('MPESA_CONSUMER_SECRET')!;
+  const authBuffer = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+
+  const tokenResp = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate', {
+    method: 'GET',
+    headers: { 'Authorization': `Basic ${authBuffer}` }
+  });
+
+  if (!tokenResp.ok) {
+    const txt = await tokenResp.text();
+    return new Response(JSON.stringify({ error: 'Failed to get MPESA token', details: txt }), { status: 502 });
+  }
+  const tokenJson = await tokenResp.json();
+  const access_token = tokenJson.access_token;
+
+  // STK Push
+  const shortcode = Deno.env.get('MPESA_BUSINESS_SHORTCODE')!;
+  const passkey = Deno.env.get('MPESA_PASSKEY')!;
+  const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+  const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+  const stkResp = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      BusinessShortCode: shortcode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: amount,
+      PartyA: phone,
+      PartyB: shortcode,
+      PhoneNumber: phone,
+      CallBackURL: `${Deno.env.get('BASE_URL')}/mpesa-callback`,
+      AccountReference: 'Trading Platform',
+      TransactionDesc: 'Deposit to Trading Account'
+    })
+  });
+
+  const stkResult = await stkResp.json();
+
+  // Log transaction in mpesa_transactions
+  try {
+    await supabase.from('mpesa_transactions').insert({
+      user_id: userId,
+      phone_number: phone,
+      amount: amount,
+      mpesa_transaction_id: stkResult.CheckoutRequestID ?? null,
+      status: stkResult.ResponseCode ? 'initiated' : 'unknown',
+      created_at: new Date().toISOString(),
+      meta: stkResult
+    });
+  } catch (e) {
+    // ignore logging errors but include in response
+    stkResult._log_error = (e as Error).message;
+  }
+
+  return new Response(JSON.stringify(stkResult), { headers: { 'Content-Type': 'application/json' } });
+});
