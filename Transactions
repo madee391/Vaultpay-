@@ -1,0 +1,6 @@
+// Main transaction interface on landing page
+- Tabs for Deposit/Withdraw
+- Amount input with validation (min 0.5)
+- Currency selection (USD, GBP, EUR)
+- Fee breakdown display
+- Simulated API calls with toasts
