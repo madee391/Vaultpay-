@@ -1,17 +1,20 @@
 import { createClient } from 'npm:@supabase/supabase-js';
 import { WebSocket } from 'npm:ws';
+import { verifyAuth } from './lib/auth.ts';
 
 Deno.serve(async (req: Request) => {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!, 
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const auth = await verifyAuth(req, supabase);
 
-  const { user } = await supabase.auth.getUser(req.headers.get('Authorization'));
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  if (!auth.ok) {
+    return new Response(JSON.stringify({ error: auth.error || 'Unauthorized' }), { status: 401 });
   }
 
+  if (!['trader', 'admin'].includes(auth.role || '')) {
+    return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+  }
+
+  // Open Deriv websocket, capture one message then close
   return new Promise((resolve, reject) => {
     const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3');
 
@@ -25,18 +28,20 @@ Deno.serve(async (req: Request) => {
     ws.onmessage = async (event) => {
       const data = JSON.parse(event.data.toString());
 
-      await supabase.from('trading_activities').insert({
-        user_id: user.id,
-        activity_data: JSON.stringify(data),
-        timestamp: new Date().toISOString()
-      });
+      // Log trading activity with user id if available
+      try {
+        await supabase.from('trading_activities').insert({
+          user_id: auth.user?.id ?? null,
+          activity_data: JSON.stringify(data),
+          timestamp: new Date().toISOString()
+        });
+      } catch (_) { /* ignore logging errors */ }
 
-      resolve(new Response(JSON.stringify(data), {
-        headers: { 'Content-Type': 'application/json' }
-      }));
+      resolve(new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } }));
+      ws.close();
     };
 
-    ws.onerror = () => {
+    ws.onerror = (err) => {
       reject(new Response(JSON.stringify({ error: 'WebSocket Error' }), { status: 500 }));
     };
   });
