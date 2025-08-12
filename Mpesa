@@ -1,0 +1,72 @@
+import { createClient } from 'npm:@supabase/supabase-js';
+import { Buffer } from 'node:buffer';
+
+Deno.serve(async (req: Request) => {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!, 
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  const { user } = await supabase.auth.getUser(req.headers.get('Authorization'));
+  if (!user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
+  const { phone, amount } = await req.json();
+
+  const credentials = {
+    consumerKey: Deno.env.get('MPESA_CONSUMER_KEY'),
+    consumerSecret: Deno.env.get('MPESA_CONSUMER_SECRET')
+  };
+
+  const authBuffer = Buffer.from(`${credentials.consumerKey}:${credentials.consumerSecret}`).toString('base64');
+  
+  const tokenResponse = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate', {
+    method: 'GET',
+    headers: { 'Authorization': `Basic ${authBuffer}` }
+  });
+
+  const { access_token } = await tokenResponse.json();
+
+  const stkPushResponse = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      BusinessShortCode: Deno.env.get('MPESA_BUSINESS_SHORTCODE'),
+      Password: generatePassword(),
+      Timestamp: new Date().toISOString().replace(/[:-]/g, '').slice(0, 14),
+      TransactionType: 'CustomerPayBillOnline',
+      Amount: amount,
+      PartyA: phone,
+      PartyB: Deno.env.get('MPESA_BUSINESS_SHORTCODE'),
+      PhoneNumber: phone,
+      CallBackURL: `${Deno.env.get('BASE_URL')}/mpesa-callback`,
+      AccountReference: 'Trading Platform',
+      TransactionDesc: 'Deposit to Trading Account'
+    })
+  });
+
+  const stkResult = await stkPushResponse.json();
+
+  await supabase.from('mpesa_transactions').insert({
+    user_id: user.id,
+    phone_number: phone,
+    amount: amount,
+    mpesa_transaction_id: stkResult.CheckoutRequestID,
+    status: 'initiated'
+  });
+
+  return new Response(JSON.stringify(stkResult), {
+    headers: { 'Content-Type': 'application/json' }
+  });
+});
+
+function generatePassword() {
+  const shortcode = Deno.env.get('MPESA_BUSINESS_SHORTCODE');
+  const passkey = Deno.env.get('MPESA_PASSKEY');
+  const timestamp = new Date().toISOString().replace(/[:-]/g, '').slice(0, 14);
+  return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+}
